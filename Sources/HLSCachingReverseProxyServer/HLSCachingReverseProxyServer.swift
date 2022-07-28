@@ -1,3 +1,7 @@
+import var CommonCrypto.CC_SHA256_DIGEST_LENGTH
+import func CommonCrypto.CC_SHA256
+import typealias CommonCrypto.CC_LONG
+import Foundation
 import GCDWebServer
 import PINCache
 
@@ -113,8 +117,7 @@ open class HLSCachingReverseProxyServer {
 
   private func originURL(from request: GCDWebServerRequest) -> URL? {
     guard let encodedURLString = request.query?[Self.originURLKey] else { return nil }
-    guard let urlString = encodedURLString.removingPercentEncoding else { return nil }
-    let url = URL(string: urlString)
+    let url = URL(string: encodedURLString)
     return url
   }
 
@@ -189,6 +192,14 @@ open class HLSCachingReverseProxyServer {
   }
 
   private func cacheKey(for resourceURL: URL) -> String {
-    return resourceURL.absoluteString.data(using: .utf8)!.base64EncodedString()
+    var urlComponents = URLComponents(url: resourceURL, resolvingAgainstBaseURL: false)
+    urlComponents?.query = nil
+    let urlData = urlComponents!.url!.absoluteString.data(using: .utf8)!
+    let hash = urlData.withUnsafeBytes { (bytes: UnsafeRawBufferPointer) -> [UInt8] in
+      var hash = [UInt8](repeating: 0, count: Int(CC_SHA256_DIGEST_LENGTH))
+      CC_SHA256(bytes.baseAddress, CC_LONG(urlData.count), &hash)
+      return hash
+    }
+    return hash.map { String(format: "%02x", $0) }.joined()
   }
 }
